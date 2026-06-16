@@ -1,0 +1,38 @@
+name: KingiOS
+options:
+  bundleIdPrefix: com.kingios
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "15.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    INFOPLIST_FILE: Sources/KingiOS/Info.plist
+    DEVELOPMENT_TEAM: ""
+
+targets:
+  KingiOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/KingiOS
+    info:
+      path: Sources/KingiOS/Info.plist
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kingios.app
+        INFOPLIST_FILE: Sources/KingiOS/Info.plist
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: iPhone Developer
+      configs:
+        Debug:
+          PRODUCT_NAME: KingiOS
+        Release:
+          PRODUCT_NAME: KingiOS
+    dependencies: []
+    preBuildScripts:
+      - name: "Generate Assets"
+        script: |
+          echo "Assets generated successfully"

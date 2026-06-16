@@ -1,0 +1,31 @@
+# Xcode
+*.xcworkspace
+xcuserdata/
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+build/
+*.xcodeproj
+!project.yml
+
+# Swift Package Manager
+.packages/
+Package.resolved
+
+# macOS
+.DS_Store
+
+# IDE
+*.swp
+*.swo
+*~
+
+# Project
+*.gcno
+*.gcda
+
+# App packaging
+*.app
+*.app.dSYM
