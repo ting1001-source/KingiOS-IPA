@@ -1,70 +1,211 @@
 #!/bin/bash
-# King iOS IPA Build Script
-# Requires: macOS + Xcode 15+ or XcodeGen
-# Usage: ./Scripts/build_ipa.sh [release|debug]
 
 set -e
 
-SCHEME="KingiOS"
+# ==========================================
+# KingiOS IPA Builder
+# ==========================================
+
 CONFIGURATION="${1:-release}"
-BUILD_DIR="./build"
-ARCHIVE_PATH="$BUILD_DIR/KingiOS.xcarchive"
-IPA_OUTPUT="$BUILD_DIR/KingiOS.ipa"
 
-echo "🏗 Building King iOS IPA ($CONFIGURATION)..."
-
-# Clean
-rm -rf "$BUILD_DIR"
-mkdir -p "$BUILD_DIR"
-
-# Generate Xcode project using XcodeGen (if available)
-if command -v xcodegen &> /dev/null; then
-    echo "📐 Generating Xcode project with XcodeGen..."
-    xcodegen generate
+if [ "$CONFIGURATION" = "release" ]; then
+    XCODE_CONFIGURATION="Release"
+else
+    XCODE_CONFIGURATION="Debug"
 fi
 
-# Build and archive
-echo "🔨 Building $SCHEME ($CONFIGURATION)..."
-xcodebuild -project "KingiOS.xcodeproj" \
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+cd "$ROOT"
+
+PROJECT="$ROOT/KingiOS.xcodeproj"
+SCHEME="KingiOS"
+
+BUILD_DIR="$ROOT/build"
+DERIVED_DATA="$BUILD_DIR/DerivedData"
+IPA="$BUILD_DIR/KingiOS.ipa"
+
+echo "=========================================="
+echo "           KingiOS IPA Builder"
+echo "=========================================="
+echo ""
+echo "Configuration: $XCODE_CONFIGURATION"
+echo "Project:       $PROJECT"
+echo "Scheme:        $SCHEME"
+echo ""
+
+# ==========================================
+# Check project
+# ==========================================
+
+if [ ! -d "$PROJECT" ]; then
+    echo "ERROR: KingiOS.xcodeproj was not found."
+    echo ""
+    echo "Generating project with XcodeGen..."
+    
+    if command -v xcodegen >/dev/null 2>&1; then
+        xcodegen generate
+    else
+        echo "ERROR: XcodeGen is not installed."
+        exit 1
+    fi
+fi
+
+if [ ! -d "$PROJECT" ]; then
+    echo "ERROR: Could not find or generate KingiOS.xcodeproj."
+    exit 1
+fi
+
+# ==========================================
+# Clean old build
+# ==========================================
+
+echo ""
+echo "=========================================="
+echo "Cleaning previous build"
+echo "=========================================="
+
+rm -rf "$BUILD_DIR"
+
+mkdir -p "$BUILD_DIR"
+
+# ==========================================
+# Show available schemes
+# ==========================================
+
+echo ""
+echo "=========================================="
+echo "Checking Xcode project"
+echo "=========================================="
+
+xcodebuild \
+    -project "$PROJECT" \
+    -list
+
+# ==========================================
+# Build application
+# ==========================================
+
+echo ""
+echo "=========================================="
+echo "Building KingiOS.app"
+echo "=========================================="
+
+xcodebuild \
+    -project "$PROJECT" \
     -scheme "$SCHEME" \
-    -configuration "$CONFIGURATION" \
-    -archivePath "$ARCHIVE_PATH" \
+    -configuration "$XCODE_CONFIGURATION" \
     -sdk iphoneos \
-    ARCHS="arm64" \
+    -destination "generic/platform=iOS" \
+    -derivedDataPath "$DERIVED_DATA" \
     CODE_SIGN_IDENTITY="" \
     CODE_SIGNING_REQUIRED=NO \
     CODE_SIGNING_ALLOWED=NO \
-    clean archive
+    build
 
-# Export IPA
-echo "📦 Exporting IPA..."
-xcodebuild -exportArchive \
-    -archivePath "$ARCHIVE_PATH" \
-    -exportPath "$BUILD_DIR" \
-    -exportOptionsPlist <(cat <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key>
-    <string>development</string>
-    <key>signingStyle</key>
-    <string>manual</string>
-    <key>signingCertificate</key>
-    <string>-</string>
-    <key>stripSwiftSymbols</key>
-    <true/>
-</dict>
-</plist>
-EOF
-    )
+# ==========================================
+# Locate application
+# ==========================================
 
-# Verify IPA
-if [ -f "$BUILD_DIR/$SCHEME.ipa" ]; then
-    mv "$BUILD_DIR/$SCHEME.ipa" "$IPA_OUTPUT"
-    echo "✅ IPA built successfully: $IPA_OUTPUT"
-    echo "📏 Size: $(du -h "$IPA_OUTPUT" | cut -f1)"
-else
-    echo "❌ IPA build failed"
+echo ""
+echo "=========================================="
+echo "Locating KingiOS.app"
+echo "=========================================="
+
+APP_SOURCE="$DERIVED_DATA/Build/Products/${XCODE_CONFIGURATION}-iphoneos/KingiOS.app"
+
+if [ ! -d "$APP_SOURCE" ]; then
+
+    echo "ERROR: KingiOS.app was not found."
+
+    echo ""
+    echo "Searching for .app files..."
+
+    find "$BUILD_DIR" \
+        -name "*.app" \
+        -type d \
+        -print
+
     exit 1
 fi
+
+echo ""
+echo "Found application:"
+echo "$APP_SOURCE"
+
+# ==========================================
+# Prepare Payload
+# ==========================================
+
+echo ""
+echo "=========================================="
+echo "Preparing IPA Payload"
+echo "=========================================="
+
+PAYLOAD="$BUILD_DIR/Payload"
+
+rm -rf "$PAYLOAD"
+
+mkdir -p "$PAYLOAD"
+
+cp -R "$APP_SOURCE" "$PAYLOAD/KingiOS.app"
+
+# ==========================================
+# Verify application
+# ==========================================
+
+if [ ! -d "$PAYLOAD/KingiOS.app" ]; then
+    echo "ERROR: Failed to copy KingiOS.app."
+    exit 1
+fi
+
+echo ""
+echo "Application prepared:"
+ls -lah "$PAYLOAD/KingiOS.app"
+
+# ==========================================
+# Create IPA
+# ==========================================
+
+echo ""
+echo "=========================================="
+echo "Creating IPA"
+echo "=========================================="
+
+cd "$BUILD_DIR"
+
+rm -f "$IPA"
+
+zip -qry "$IPA" Payload
+
+# ==========================================
+# Verify IPA
+# ==========================================
+
+if [ ! -f "$IPA" ]; then
+    echo ""
+    echo "ERROR: IPA creation failed."
+    exit 1
+fi
+
+echo ""
+echo "=========================================="
+echo "IPA CREATED SUCCESSFULLY"
+echo "=========================================="
+
+echo ""
+echo "File:"
+echo "$IPA"
+
+echo ""
+echo "Size:"
+ls -lh "$IPA"
+
+echo ""
+echo "Contents:"
+unzip -l "$IPA"
+
+echo ""
+echo "=========================================="
+echo "              COMPLETE"
+echo "=========================================="
