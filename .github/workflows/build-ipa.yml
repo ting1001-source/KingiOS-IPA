@@ -1,0 +1,48 @@
+name: Build KingiOS IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15-intel
+
+    steps:
+      - name: Checkout KingiOS
+        uses: actions/checkout@v6
+
+      - name: Show macOS and Xcode versions
+        run: |
+          sw_vers
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: |
+          brew update
+          brew install xcodegen
+
+      - name: Generate Xcode project
+        run: |
+          xcodegen generate
+
+      - name: Make build script executable
+        run: |
+          chmod +x Scripts/build_ipa.sh
+
+      - name: Build IPA
+        run: |
+          ./Scripts/build_ipa.sh release
+
+      - name: Find IPA
+        run: |
+          echo "Searching for IPA..."
+          find . -name "*.ipa" -print
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v6
+        with:
+          name: KingiOS-IPA
+          path: |
+            build/*.ipa
+            **/*.ipa
+          if-no-files-found: error
